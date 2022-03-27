@@ -40,9 +40,16 @@
 #include "loader.h"
 #include "user-mmap.h"
 #include "flat.h"
-#include "target_flat.h"
 
-//#define DEBUG
+#if defined(TARGET_MICROBLAZE)
+#include "microblaze/target_flat.h"
+#elif defined(TARGET_XTENSA)
+#include "xtensa/target_flat.h"
+#else
+#include "target_flat.h"
+#endif
+
+#define DEBUG
 
 #ifdef DEBUG
 #define	DBG_FLT(...)	printf(__VA_ARGS__)
@@ -259,7 +266,7 @@ out:
 /****************************************************************************/
 
 static abi_ulong
-calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp)
+calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
 {
     abi_ulong addr;
     int id;
@@ -310,8 +317,8 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp)
 
     if (!flat_reloc_valid(r, start_brk - start_data + text_len)) {
         fprintf(stderr, "BINFMT_FLAT: reloc outside program 0x%x "
-                "(0 - 0x%x/0x%x)\n",
-               (int) r,(int)(start_brk-start_code),(int)text_len);
+                "(0 - 0x%x/0x%x) ridx: %d\n",
+               (int) r,(int)(start_brk-start_code),(int)text_len, ridx);
         goto failed;
     }
 
@@ -595,6 +602,7 @@ static int load_flat_file(struct linux_binprm * bprm,
      */
     if (flags & FLAT_FLAG_GOTPIC) {
         rp = datapos;
+        int ridx = 0;
         while (1) {
             abi_ulong addr;
             if (get_user_ual(addr, rp))
@@ -602,13 +610,14 @@ static int load_flat_file(struct linux_binprm * bprm,
             if (addr == -1)
                 break;
             if (addr) {
-                addr = calc_reloc(addr, libinfo, id, 0);
+                addr = calc_reloc(addr, libinfo, id, 0, ridx);
                 if (addr == RELOC_FAILED)
                     return -ENOEXEC;
                 if (put_user_ual(addr, rp))
                     return -EFAULT;
             }
             rp += sizeof(abi_ulong);
+            ++ridx;
         }
     }
 
@@ -637,7 +646,8 @@ static int load_flat_file(struct linux_binprm * bprm,
             if (flat_set_persistent(relval, &persistent))
                 continue;
             addr = flat_get_relocate_addr(relval);
-            rp = calc_reloc(addr, libinfo, id, 1);
+            DBG_FLT("flat_get_relocate_addr(0x%08x) => 0x%08x\n", relval, addr);
+            rp = calc_reloc(addr, libinfo, id, 1, i + 20000);
             if (rp == RELOC_FAILED)
                 return -ENOEXEC;
 
@@ -652,7 +662,7 @@ static int load_flat_file(struct linux_binprm * bprm,
                  */
                 if ((flags & FLAT_FLAG_GOTPIC) == 0)
                     addr = ntohl(addr);
-                addr = calc_reloc(addr, libinfo, id, 0);
+                addr = calc_reloc(addr, libinfo, id, 0, i + 10000);
                 if (addr == RELOC_FAILED)
                     return -ENOEXEC;
 
