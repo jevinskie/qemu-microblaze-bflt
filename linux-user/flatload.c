@@ -275,6 +275,8 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
     abi_ulong text_len;
     abi_ulong start_code;
 
+    DBG_FLT("calc_reloc() r: 0x%08x ridx: %d\n", r, ridx);
+
 #ifdef CONFIG_BINFMT_SHARED_FLAT
 #error needs checking
     if (r == 0)
@@ -315,9 +317,13 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
     start_code = p[id].start_code;
     text_len = p[id].text_len;
 
+    #if defined(TARGET_MICROBLAZE)
+    r = r & MICROBLAZE_REL_MASK;
+    #endif
+
     if (!flat_reloc_valid(r, start_brk - start_data + text_len)) {
-        fprintf(stderr, "BINFMT_FLAT: reloc outside program 0x%x "
-                "(0 - 0x%x/0x%x) ridx: %d\n",
+        fprintf(stderr, "BINFMT_FLAT: reloc outside program 0x%08x "
+                "(0 - 0x%08x/0x%08x) ridx: %d\n",
                (int) r,(int)(start_brk-start_code),(int)text_len, ridx);
         goto failed;
     }
@@ -326,6 +332,8 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
         addr = r + start_code;
     else					/* In data segment */
         addr = r - text_len + start_data;
+
+    DBG_FLT("calc_reloc() r: 0x%08x ridx: %d = 0x%08x\n", r, ridx, addr);
 
     /* Range checked already above so doing the range tests is redundant...*/
     return(addr);
@@ -635,7 +643,7 @@ static int load_flat_file(struct linux_binprm * bprm,
     if (rev > OLD_FLAT_VERSION) {
         abi_ulong persistent = 0;
         for (i = 0; i < relocs; i++) {
-            abi_ulong addr, relval;
+            abi_ulong addr, relval, orig_addr, new_addr;
 
             /* Get the address of the pointer to be
                relocated (of course, the address has to be
@@ -646,27 +654,56 @@ static int load_flat_file(struct linux_binprm * bprm,
             if (flat_set_persistent(relval, &persistent))
                 continue;
             addr = flat_get_relocate_addr(relval);
+            orig_addr = addr;
+            (void)orig_addr;
             DBG_FLT("flat_get_relocate_addr(0x%08x) => 0x%08x\n", relval, addr);
             rp = calc_reloc(addr, libinfo, id, 1, i + 20000);
             if (rp == RELOC_FAILED)
                 return -ENOEXEC;
 
             /* Get the pointer's value.  */
+            #ifdef TARGET_MICROBLAZE
+            if (orig_addr & 0x80000000) {
+                abi_ulong addr_hi, addr_lo;
+                if (get_user_ual(addr_hi, rp)) {
+                    DBG_FLT("bad read addr_hi\n");
+                    return -EFAULT;
+                }
+                if (get_user_ual(addr_lo, rp + 4)) {
+                    DBG_FLT("bad read addr_lo\n");
+                    return -EFAULT;
+                }
+                new_addr = ((addr_hi & 0xFFFF) << 16) | (addr_lo & 0xFFFF);
+                DBG_FLT("64 bit reloc addr_hi: 0x%08x addr_lo: 0x%08x orig_addr: 0x%08x new_addr: 0x%08x\n", addr_hi, addr_lo, addr, new_addr);
+                addr = new_addr;
+            } else {
+                if (get_user_ual(addr, rp)) {
+                    DBG_FLT("32 bit reloc bad addr\n");
+                    return -EFAULT;
+                }
+            }
+            #else
             if (get_user_ual(addr, rp))
                 return -EFAULT;
-            addr = flat_get_addr_from_rp(addr, relval, flags, &persistent);
+            #endif
+            new_addr = flat_get_addr_from_rp(addr, relval, flags, &persistent);
+            DBG_FLT("flat_get_addr_from_rp(0x%08x, 0x%08x, 0x%08x, %p) => 0x%08x\n", addr, relval, flags, &persistent, new_addr);
+            addr = new_addr;
             if (addr != 0) {
                 /*
                  * Do the relocation.  PIC relocs in the data section are
                  * already in target order
                  */
+                #ifndef TARGET_MICROBLAZE
                 if ((flags & FLAT_FLAG_GOTPIC) == 0)
                     addr = ntohl(addr);
+                #endif
                 addr = calc_reloc(addr, libinfo, id, 0, i + 10000);
                 if (addr == RELOC_FAILED)
                     return -ENOEXEC;
 
                 /* Write back the relocated pointer.  */
+                DBG_FLT("flat_put_addr_at_rp(rp: 0x%08x, addr: 0x%08x, relval: 0x%08x)\n", rp, addr, relval);
                 if (flat_put_addr_at_rp(rp, addr, relval))
                     return -EFAULT;
             }
