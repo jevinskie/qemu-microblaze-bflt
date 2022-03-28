@@ -41,6 +41,7 @@ static int flat_put_addr_at_rp(abi_ulong rp, abi_ulong addr, abi_ulong relval) {
             printf("32 bit reloc write bad get orig_addr rp\n");
             return -EFAULT;
         }
+        addr -= sizeof(struct flat_hdr);
         printf("32 bit reloc write orig_addr: 0x%08x new_addr: 0x%08x\n", orig_addr, addr);
         if (put_user_ual(addr, rp)) {
             printf("32 bit reloc write bad put addr rp\n");

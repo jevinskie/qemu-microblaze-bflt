@@ -329,9 +329,18 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
     }
 
     if (r < text_len)			/* In text segment */
+    #ifndef TARGET_MICROBLAZE
         addr = r + start_code;
+    #else
+        addr = r + start_code;
+        // addr = r + start_code - sizeof(struct flat_hdr);
+    #endif
     else					/* In data segment */
+    #ifndef TARGET_MICROBLAZE
         addr = r - text_len + start_data;
+    #else
+        addr = r - text_len + start_data;
+    #endif
 
     DBG_FLT("calc_reloc() r: 0x%08x ridx: %d = 0x%08x\n", r, ridx, addr);
 
