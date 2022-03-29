@@ -24,6 +24,7 @@ static int flat_put_addr_at_rp(abi_ulong rp, abi_ulong addr, abi_ulong relval) {
             return -EFAULT;
         }
         printf("origs inst_hi: 0x%08x inst_lo: 0x%08x\n", inst_hi, inst_lo);
+        addr -= sizeof(struct flat_hdr);
         inst_hi = (inst_hi & 0xFFFF0000) | (addr >> 16);
         inst_lo = (inst_lo & 0xFFFF0000) | (addr & 0xFFFF);
         printf("news inst_hi: 0x%08x inst_lo: 0x%08x\n", inst_hi, inst_lo);

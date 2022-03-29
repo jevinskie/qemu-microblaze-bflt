@@ -2842,6 +2842,8 @@ static void load_elf_image(const char *image_name, int image_fd,
      * In both cases, we will overwrite pages in this range with mappings
      * from the executable.
      */
+    // fprintf(stderr, "mmap 1\n");
+    // fprintf(stderr, "mmap(loaddr: %p, hiaddr: %p hiaddr - loaddr: %p)\n", (void*)(uintptr_t)loaddr, (void*)(uintptr_t)hiaddr, (void*)((uintptr_t)hiaddr - (uintptr_t)loaddr));
     load_addr = target_mmap(loaddr, hiaddr - loaddr, PROT_NONE,
                             MAP_PRIVATE | MAP_ANON | MAP_NORESERVE |
                             (ehdr->e_type == ET_EXEC ? MAP_FIXED : 0),
@@ -2931,6 +2933,7 @@ static void load_elf_image(const char *image_name, int image_fd,
              */
             if (eppnt->p_filesz != 0) {
                 vaddr_len = TARGET_ELF_PAGELENGTH(eppnt->p_filesz + vaddr_po);
+                // printf("mmap2\n");
                 error = target_mmap(vaddr_ps, vaddr_len, elf_prot,
                                     MAP_PRIVATE | MAP_FIXED,
                                     image_fd, eppnt->p_offset - vaddr_po);
@@ -2947,6 +2950,7 @@ static void load_elf_image(const char *image_name, int image_fd,
                 }
             } else if (eppnt->p_memsz != 0) {
                 vaddr_len = TARGET_ELF_PAGELENGTH(eppnt->p_memsz + vaddr_po);
+                // printf("mmap3\n");
                 error = target_mmap(vaddr_ps, vaddr_len, elf_prot,
                                     MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS,
                                     -1, 0);

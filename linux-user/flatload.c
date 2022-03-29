@@ -321,6 +321,8 @@ calc_reloc(abi_ulong r, struct lib_info *p, int curid, int internalp, int ridx)
     r = r & MICROBLAZE_REL_MASK;
     #endif
 
+    printf("r: 0x%08x start_code: 0x%08x start_data: 0x%08x\n", r, start_code, start_data);
+
     if (!flat_reloc_valid(r, start_brk - start_data + text_len)) {
         fprintf(stderr, "BINFMT_FLAT: reloc outside program 0x%08x "
                 "(0 - 0x%08x/0x%08x) ridx: %d\n",
