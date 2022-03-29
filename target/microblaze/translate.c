@@ -1397,6 +1397,11 @@ static bool trans_msrset(DisasContext *dc, arg_type_msr *arg)
 
 static bool trans_mts(DisasContext *dc, arg_mts *arg)
 {
+#ifdef CONFIG_USER_ONLY
+    // nop it out
+    return true;
+#endif
+
     if (trap_userspace(dc, true)) {
         return true;
     }
